@@ -1,0 +1,13 @@
+{
+  "extends": [
+    "eslint:recommended",
+    "plugin:react/recommended"
+  ],
+  "parser": "babel-eslint",
+  "globals": {
+    "page": true,
+    "document": true
+  },
+  "rules": {
+  }
+}

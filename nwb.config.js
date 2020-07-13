@@ -3,7 +3,7 @@ module.exports = {
   npm: {
     esModules: true,
     umd: {
-      global: 'MiradorLunrSearch',
+      global: 'Mirador.LunrSearch',
       externals: {
         react: 'React'
       }

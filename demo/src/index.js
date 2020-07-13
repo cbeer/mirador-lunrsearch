@@ -1,15 +1,30 @@
-import React, {Component} from 'react'
-import {render} from 'react-dom'
+import Mirador from 'mirador/dist/es/src/index';
+import textOverlayPlugin from 'mirador-textoverlay/es/index';
+import lunrSearchPlugin from '../../src';
 
-import Example from '../../src'
+const config = {
+  catalog: [
+    { manifestId: 'https://iiif.europeana.eu/presentation/9200396/BibliographicResource_3000118436165/manifest', provider: 'Europeana (Annotations)' },
+    { manifestId: 'https://wellcomelibrary.org/iiif/b19956435/manifest', provider: 'Wellcome Library (ALTO)' },
+    { manifestId: 'https://wellcomelibrary.org/iiif/b18035723/manifest', provider: 'Wellcome Library (ALTO)' },
+    { manifestId: 'https://scta.info/iiif/graciliscommentary/lon/manifest', provider: 'SCTA (Annotations)' },
+    { manifestId: 'https://purl.stanford.edu/fg165hz3589/iiif/manifest', provider: 'Stanford University Libraries (ALTO)' },
+  ],
+  id: 'demo',
+  window: {
+    textOverlay: {
+      enabled: true,
+      selectable: true,
+      visible: false,
+    },
+  },
+  windows: [{
+    canvasIndex: 8,
+    manifestId: 'https://wellcomelibrary.org/iiif/b19956435/manifest',
+  }],
+};
 
-class Demo extends Component {
-  render() {
-    return <div>
-      <h1>mirador-lunrsearch Demo</h1>
-      <Example/>
-    </div>
-  }
-}
-
-render(<Demo/>, document.querySelector('#demo'))
+Mirador.viewer(config, [
+  ...textOverlayPlugin,
+  ...lunrSearchPlugin,
+]);
