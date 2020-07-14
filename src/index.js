@@ -2,6 +2,7 @@ import {
   all, call, put, select, takeEvery,race, take, delay,
 } from 'redux-saga/effects';
 import ActionTypes from 'mirador/dist/es/src/state/actions/action-types.js';
+import { receiveSearch } from 'mirador/dist/es/src/state/actions';
 import { getCanvases, getWindowIds } from 'mirador/dist/es/src/state/selectors';
 import { requestText, PluginActionTypes } from 'mirador-textoverlay/es/state/actions.js';
 import { getTexts } from 'mirador-textoverlay/es/state/selectors.js';
@@ -49,8 +50,8 @@ function *waitForOcrSources({ windowId }) {
   const ocrSources = yield call(getOcrSourcesToFetch, windowId);
   yield all([
     ...ocrSources.map(source => call(fetchCanvasText, ...source)),
-    race(
-      all(
+    race([
+      all([
         ...ocrSources.map(source => source[1]).map(uri => (
           take(
             ({ type, textUri}) => (
@@ -59,9 +60,9 @@ function *waitForOcrSources({ windowId }) {
             )
           )
         ))
-      ),
+      ]),
       delay(30000),
-    )
+    ])
   ]);
 }
 
@@ -80,6 +81,7 @@ function parseOcr(builder) {
           y: word.y,
           w: word.width,
           h: word.height,
+          text: word.text,
         };
         const content = word.text;
         if (content && content.length > 0) {
@@ -90,7 +92,7 @@ function parseOcr(builder) {
     }
 
     return tokens;
-  };
+  }
 
   // Register the pipeline function so the index can be serialised
   // lunr.Pipeline.registerFunction(tokenizer, 'parseAltoTokenizer')
@@ -122,23 +124,57 @@ function *processLunrIndex({ windowId }) {
   return indexes[windowId];
 }
 
-function *handleSearchWithLunr({ windowId }) {
+function *handleSearchWithLunr({ companionWindowId, query, windowId }) {
   yield call(waitForOcrSources, { windowId });
 
   if (!indexes[windowId]) yield call(processLunrIndex, { windowId });
+
+  const results = indexes[windowId].search(query);
+  const resources = [];
+  results.forEach((canvasHit, canvasIndex) => {
+    Object.values(canvasHit.matchData.metadata).forEach(({text}) => {
+      text.position.forEach((hit, hitIndex) => {
+        resources.push({
+          '@id': `local-result-${canvasIndex}-${hitIndex}`,
+          '@type': 'oa:Annotation',
+          motivation: 'sc:painting',
+          on: `${canvasHit.ref}#xywh=${Math.round(hit.x)},${Math.round(hit.y)},${Math.round(hit.w)},${Math.round(hit.h)}`,
+          resource: {
+            '@type': 'cnt:ContentAsText',
+            chars: hit.text,
+          }
+        });
+      });
+    })
+  });
+  const searchJson  = {
+    "@context":"http://iiif.io/api/presentation/3/context.json",
+    "@id": `local-search-${query}`,
+    "@type":"sc:AnnotationList",
+    "resources": resources,
+    "hits": resources.map(({ '@id': id }) => (
+      {
+        "@type": "search:Hit",
+        "annotations": [
+          id
+        ],
+      }
+    )),
+  };
+  yield put(receiveSearch(windowId, companionWindowId, windowId, searchJson))
 }
 
-function *updateLunrIndex(action) {
-  const windowIds = yield select(getWindowIds);
-
-  for (const windowId of windowIds) {
-    const canvases = yield select(getCanvases, { windowId });
-
-    if (canvases.some(c => c.id === action.targetId)) {
-      yield call(processLunrIndex, { windowId });
-    }
-  }
-}
+// function *updateLunrIndex(action) {
+//   const windowIds = yield select(getWindowIds);
+//
+//   for (const windowId of windowIds) {
+//     const canvases = yield select(getCanvases, { windowId });
+//
+//     if (canvases.some(c => c.id === action.targetId)) {
+//       yield call(processLunrIndex, { windowId });
+//     }
+//   }
+// }
 
 function* searchSaga() {
   yield all([
